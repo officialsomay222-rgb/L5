@@ -1,0 +1,6 @@
+{
+  "name": "Android WebView Code Generator",
+  "description": "Generated Kotlin and XML code for an optimized Android WebView application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
