@@ -11,33 +11,42 @@ export const androidProjectFiles: CodeFile[] = [
     content: `package com.example.webviewapp
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var swipeRefreshLayout: SwipeRefreshLayout
+    private lateinit var progressBar: ProgressBar
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Setup edge-to-edge display and insets for smooth keyboard transition
+        // Edge-to-edge display setup
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
         setContentView(R.layout.activity_main)
         
-        // Setup Status Bar and Navigation Bar colors
-        window.statusBarColor = Color.parseColor("#FFFFFF") // Match your website theme
+        // Status Bar and Navigation Bar colors
+        window.statusBarColor = Color.parseColor("#FFFFFF") // Matches website theme
         window.navigationBarColor = Color.parseColor("#FFFFFF")
         
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
@@ -45,13 +54,15 @@ class MainActivity : AppCompatActivity() {
         windowInsetsController.isAppearanceLightNavigationBars = true
 
         webView = findViewById(R.id.webView)
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
+        progressBar = findViewById(R.id.progressBar)
 
-        // Handle Window Insets for smooth keyboard resize
+        // Window Insets for smooth keyboard resize (fixes Capacitor-like delay)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { view, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             
-            // Calculate the padding needed to avoid overlapping with system bars or keyboard
+            // Calculate padding needed to avoid overlapping with system bars or keyboard
             val bottomPadding = if (ime.bottom > 0) ime.bottom else systemBars.bottom
             
             view.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomPadding)
@@ -60,6 +71,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupWebView()
+
+        // Swipe to Refresh
+        swipeRefreshLayout.setOnRefreshListener {
+            webView.reload()
+        }
 
         // Handle Back Button
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -80,33 +96,67 @@ class MainActivity : AppCompatActivity() {
     private fun setupWebView() {
         val webSettings: WebSettings = webView.settings
         
-        // Enable JavaScript
+        // Proper PWA / Web App Settings
         webSettings.javaScriptEnabled = true
-        
-        // Enable DOM Storage
         webSettings.domStorageEnabled = true
-        
-        // Enable Database
         webSettings.databaseEnabled = true
-        
-        // Allow file access
         webSettings.allowFileAccess = true
-        
-        // Use modern caching strategies
         webSettings.cacheMode = WebSettings.LOAD_DEFAULT
+        webSettings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        webSettings.setSupportZoom(false)
 
-        // Prevent opening external browser
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                view?.loadUrl(url ?: "")
+                if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    view?.loadUrl(url)
+                    return true
+                }
+                // Handle deep links like mailto:, tel:, intent:
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 return true
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                progressBar.visibility = View.VISIBLE
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                swipeRefreshLayout.isRefreshing = false
+                progressBar.visibility = View.GONE
             }
         }
         
-        // Handle console logs, progress, etc.
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                progressBar.progress = newProgress
+                if (newProgress == 100) {
+                    progressBar.visibility = View.GONE
+                }
+            }
+        }
+
+        // Handle File Downloads (PDFs, Images, etc.)
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
+            try {
+                val intent = Intent(Intent.ACTION_VIEW)
+                intent.data = Uri.parse(url)
+                startActivity(intent)
+                Toast.makeText(this@MainActivity, "Downloading...", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
-}`
+}
+`
   },
   {
     name: 'activity_main.xml',
@@ -120,16 +170,36 @@ class MainActivity : AppCompatActivity() {
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <WebView
-        android:id="@+id/webView"
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:progressDrawable="@android:color/holo_green_light"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:elevation="2dp" />
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshLayout"
         android:layout_width="0dp"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/progressBar">
 
-</androidx.constraintlayout.widget.ConstraintLayout>`
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+`
   },
   {
     name: 'AndroidManifest.xml',
@@ -209,6 +279,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.webkit)
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
