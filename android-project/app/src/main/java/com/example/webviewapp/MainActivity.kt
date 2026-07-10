@@ -35,9 +35,9 @@ class MainActivity : AppCompatActivity() {
         
         setContentView(R.layout.activity_main)
         
-        // Status Bar and Navigation Bar colors
-        window.statusBarColor = Color.parseColor("#FFFFFF") // Matches website theme
-        window.navigationBarColor = Color.parseColor("#FFFFFF")
+        // Status Bar and Navigation Bar colors (Transparent for full screen stretch)
+        window.statusBarColor = Color.TRANSPARENT 
+        window.navigationBarColor = Color.TRANSPARENT
         
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         windowInsetsController.isAppearanceLightStatusBars = true
@@ -49,16 +49,28 @@ class MainActivity : AppCompatActivity() {
 
         // Window Insets for smooth keyboard resize (fixes Capacitor-like delay)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             
-            // Calculate padding needed to avoid overlapping with system bars or keyboard
-            val bottomPadding = if (ime.bottom > 0) ime.bottom else systemBars.bottom
+            // Only pad for the keyboard, so the webview draws behind the transparent status and navigation bars!
+            view.setPadding(0, 0, 0, ime.bottom)
             
-            view.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomPadding)
-            
-            insets
+            WindowInsetsCompat.CONSUMED
         }
+
+        // Add Animation Callback for perfect frame-by-frame smoothness when keyboard opens
+        ViewCompat.setWindowInsetsAnimationCallback(
+            findViewById(R.id.main),
+            object : androidx.core.view.WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
+                override fun onProgress(
+                    insets: WindowInsetsCompat,
+                    runningAnimations: MutableList<androidx.core.view.WindowInsetsAnimationCompat>
+                ): WindowInsetsCompat {
+                    val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+                    findViewById<android.view.View>(R.id.main).setPadding(0, 0, 0, ime.bottom)
+                    return insets
+                }
+            }
+        )
 
         setupWebView()
 

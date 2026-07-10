@@ -45,9 +45,9 @@ class MainActivity : AppCompatActivity() {
         
         setContentView(R.layout.activity_main)
         
-        // Status Bar and Navigation Bar colors
-        window.statusBarColor = Color.parseColor("#FFFFFF") // Matches website theme
-        window.navigationBarColor = Color.parseColor("#FFFFFF")
+        // Status Bar and Navigation Bar colors (Transparent for full screen stretch)
+        window.statusBarColor = Color.TRANSPARENT 
+        window.navigationBarColor = Color.TRANSPARENT
         
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         windowInsetsController.isAppearanceLightStatusBars = true
@@ -59,16 +59,28 @@ class MainActivity : AppCompatActivity() {
 
         // Window Insets for smooth keyboard resize (fixes Capacitor-like delay)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { view, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             
-            // Calculate padding needed to avoid overlapping with system bars or keyboard
-            val bottomPadding = if (ime.bottom > 0) ime.bottom else systemBars.bottom
+            // Only pad for the keyboard, so the webview draws behind the transparent status and navigation bars!
+            view.setPadding(0, 0, 0, ime.bottom)
             
-            view.setPadding(systemBars.left, systemBars.top, systemBars.right, bottomPadding)
-            
-            insets
+            WindowInsetsCompat.CONSUMED
         }
+
+        // Add Animation Callback for perfect frame-by-frame smoothness when keyboard opens
+        ViewCompat.setWindowInsetsAnimationCallback(
+            findViewById(R.id.main),
+            object : androidx.core.view.WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
+                override fun onProgress(
+                    insets: WindowInsetsCompat,
+                    runningAnimations: MutableList<androidx.core.view.WindowInsetsAnimationCompat>
+                ): WindowInsetsCompat {
+                    val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+                    findViewById<android.view.View>(R.id.main).setPadding(0, 0, 0, ime.bottom)
+                    return insets
+                }
+            }
+        )
 
         setupWebView()
 
@@ -231,14 +243,15 @@ class MainActivity : AppCompatActivity() {
             </intent-filter>
         </activity>
     </application>
-</manifest>`
+</manifest>
+`
   },
   {
     name: 'build.gradle.kts (app)',
     language: 'kotlin',
     content: `plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
 android {
@@ -271,19 +284,21 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+    buildFeatures {
+        viewBinding = false
+        dataBinding = false
+    }
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
-    implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.webkit)
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.webkit:webkit:1.10.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-}`
+}
+`
   },
   {
     name: 'themes.xml (Light)',
@@ -291,8 +306,8 @@ dependencies {
     content: `<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.WebViewApp" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
     <style name="Theme.WebViewApp" parent="Base.Theme.WebViewApp" />
@@ -304,8 +319,8 @@ dependencies {
     content: `<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Base.Theme.WebViewApp" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>`
   }
